@@ -2,7 +2,7 @@
 This Python script addresses issues when importing Blackboard course export packages into Canvas. Its main purpose is to re-label Blackboard assignments, ensuring they import correctly as assignments rather than quizzes.
 
 ## Features
-- Processes Blackboard export packages (ExportFile_*.zip) to ensure Blackboard Assignments are correctly recognized as assignments in Canvas.
+- Processes Blackboard export packages `(ExportFile_*.zip)` to ensure Blackboard Assignments are correctly recognized as assignments in Canvas.
 - Bulk processing of multiple archive files.
 - Option to add placeholders for omitted LTI content, ensuring visual representation.
 - Option to Prettify XML for easier manual inspection.
@@ -12,8 +12,8 @@ This Python script addresses issues when importing Blackboard course export pack
 - `lxml` library: Install with `pip install lxml`
 
 ## Installation
-1. Clone the repository: `git clone <repository-url>`
-2. Navigate to the project directory: `cd <repository-name>`
+1. Clone the repository: `git clone https://github.com/Sneakers82/bb-ultra-to-canvas-import-fixer`
+2. Navigate to the project directory: `cd bb-ultra-to-canvas-import-fixer`
 3. Install required libraries: `pip install -r requirements.txt`
 
 ## Usage
