@@ -1,0 +1,15 @@
+# Ignore key files
+*.key
+*.idea
+*.env
+
+TEMP_DIR/
+Sample\ Archives/
+
+
+IN/*
+OUT/*
+
+
+!IN/
+!OUT/

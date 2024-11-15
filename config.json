@@ -1,0 +1,7 @@
+{
+    "TEMP_DIR": "./TEMP_DIR",
+    "INPUT_DIR": "./IN",
+    "OUTPUT_DIR": "./OUT",
+    "IMSMANIFEST": "imsmanifest.xml"
+
+}
