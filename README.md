@@ -1,5 +1,5 @@
 # Blackboard Ultra to Canvas Import Fixer
-This Python script addresses issues when importing Blackboard course export packages into Canvas. Its main purpose is to re-label Blackboard assignments, ensuring they import correctly as assignments rather than quizzes.
+This Python script addresses issues with importing Blackboard course export packages into Canvas by modifying the export package. Its primary function is to re-label Blackboard assignments within the package, ensuring they are imported correctly as assignments rather than quizzes.
 
 ## Features
 - Processes Blackboard export packages `(ExportFile_*.zip)` to ensure Blackboard Assignments are correctly recognized as assignments in Canvas.
