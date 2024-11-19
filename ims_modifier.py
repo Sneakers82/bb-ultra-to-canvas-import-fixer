@@ -6,6 +6,7 @@ from dat_file import read_dat_file, save_dat_file, delete_dat_file
 
 class ImsManifest:
     """Class to manage and modify the imsmanifest.xml file in a Blackboard course export."""
+
     def __init__(self):
         """Initialize the ImsManifest by loading and parsing the imsmanifest.xml file."""
         self.file_path = os.path.join(TEMP_DIR, IMSMANIFEST)
@@ -40,6 +41,20 @@ class ImsManifest:
 
         dat_files = [assignment.get('{http://www.blackboard.com/content-packaging/}file') for assignment in assignments
                      if assignment.get('{http://www.blackboard.com/content-packaging/}file')]
+
+        return dat_files
+
+    def get_discussion_resources(self):
+        """Retrieve discussion resource files listed in the manifest.
+
+                Returns:
+                    list: A list of paths to assignment data files within the manifest.
+                """
+        discussions = self.manifest_root.xpath(f".//resource[@bb:title='' "
+                                               f"and @type='resource/x-bb-link']", namespaces=self.ns_map)
+
+        dat_files = [discussion.get('{http://www.blackboard.com/content-packaging/}file') for discussion in discussions
+                     if discussion.get('{http://www.blackboard.com/content-packaging/}file')]
 
         return dat_files
 
@@ -120,6 +135,67 @@ class ImsManifest:
             files_to_delete = [file, referred_to, asmtid]
             delete_dat_file(files_to_delete)
             self.remove_resource(files_to_delete)
+
+    def fix_discussions(self, dat_files):
+        """Convert Blackboard Discussions to Canvas-compatible format in data files.
+
+               Args:
+                   dat_files (list): List of data file paths to process for discussion conversion.
+               """
+        for file in dat_files:
+            dat_file_data = read_dat_file(file)
+            dat_file_root = dat_file_data.getroot()
+
+            referrer = dat_file_root.find("REFERRER")
+            referredto = dat_file_root.find("REFERREDTO")
+
+            referrer_type = referrer.get("type")
+            referredto_type = referredto.get("type")
+
+            if referrer_type == "CONTENT" and referredto_type == "FORUM":
+                referrer_content = dat_file_root.xpath(".//REFERRER/@id")[0] + ".dat"
+                referred_to_forum = dat_file_root.xpath(".//REFERREDTO/@id")[0] + ".dat"
+
+                # Get forum description
+                referred_to_forum_data = read_dat_file(referred_to_forum)
+                referred_to_forum_root = referred_to_forum_data.getroot()
+                referred_to_forum_text_data = referred_to_forum_root.xpath(".//MESSAGETEXT/TEXT")
+                forum_description = "".join([text.text for text in referred_to_forum_text_data])
+
+                # Get forum content
+                referrer_content_data = read_dat_file(referrer_content)
+                referrer_content_root = referrer_content_data.getroot()
+                referrer_content_body_text = referrer_content_root.xpath("//BODY/TEXT")[0]
+
+                # Fix forum description
+                if referrer_content_body_text.text is None:
+                    referrer_content_body_text.text = ""
+                referrer_content_body_text.text += forum_description
+
+                save_dat_file(referrer_content, referrer_content_data)
+
+            elif referrer_type == "CONTENT" and referredto_type == "CONTENT":
+                referrer = dat_file_root.xpath(".//REFERRER/@id")[0] + ".dat"
+
+                referrer_file_data = read_dat_file(referrer)
+                referrer_file_root = referrer_file_data.getroot()
+                referrer_content_handler = referrer_file_root.xpath("//CONTENTHANDLER")[0]
+
+                # Update Content handler of Forum
+                referrer_content_handler.set("value", "resource/x-bb-forumlink")
+
+                save_dat_file(referrer, referrer_file_data)
+
+            else:
+                pass
+
+        # Remove INTERACTIVE group
+        interactive_group = self.manifest_root.xpath("//item[title='INTERACTIVE']")
+
+        if interactive_group:
+            for item in interactive_group:
+                parent = item.getparent()
+                parent.remove(item)
 
     def remove_resource(self, resources):
         """Remove specified resources from the manifest.

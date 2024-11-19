@@ -1,11 +1,16 @@
 # Blackboard Ultra to Canvas Import Fixer
-This Python script addresses issues with importing Blackboard course export packages into Canvas by modifying the export package. Its primary function is to re-label Blackboard assignments within the package, ensuring they are imported correctly as assignments rather than quizzes.
+This Python script addresses common issues with importing Blackboard Ultra course export packages into Canvas by 
+modifying the export package `(ExportFile_*.zip)`. 
+
 
 ## Features
-- Processes Blackboard export packages `(ExportFile_*.zip)` to ensure Blackboard Assignments are correctly recognized as assignments in Canvas.
-- Bulk processing of multiple archive files.
-- Option to add placeholders for omitted LTI content, ensuring visual representation.
-- Option to Prettify XML for easier manual inspection.
+- Fixes Blackboard Assignments so they are correctly recognized as assignments in Canvas, preventing them from being 
+mistakenly imported as quizzes.
+- Resolves formatting issues in Blackboard Discussion Board descriptions, ensuring accurate import into Canvas.
+- Preserves Discussion Boards' position within the main content of the course for proper placement and accessibility.
+- Supports bulk processing of multiple archive files for efficiency.
+- Provides an option to add placeholders for omitted LTI content, ensuring visual representation.
+- Includes an option to prettify XML for easier manual inspection and debugging.
 
 ## Requirements
 - Python 3.x
@@ -22,9 +27,12 @@ This Python script addresses issues with importing Blackboard course export pack
 3. Processed files will be saved in the `OUT` folder with a `PATCHED_` prefix.
 
 ### Considerations
-- **Input files remain unmodified:** The script generates new output files, which will occupy additional storage space equal to the size of the input files. Ensure you have sufficient disk space available before processing.  
-- **Synchronous processing:** Files are processed one at a time. For large batches (e.g., thousands of files), the script may take a significant amount of time to complete.
-- **Error handling not yet implemented:** The script may fail if it encounters a badly formatted export package. However, all files written to the output directory should be valid and properly processed.
+- **Input files remain unmodified:** The script generates new output files, which will occupy additional storage space 
+equal to the size of the input files. Ensure you have sufficient disk space available before processing.  
+- **Synchronous processing:** Files are processed one at a time. For large batches (e.g., thousands of files), the 
+script may take a significant amount of time to complete.
+- **Error handling not yet implemented:** The script may fail if it encounters a badly formatted export package. 
+However, all files written to the output directory should be valid and properly processed.
 
 ### Options
 
@@ -32,8 +40,10 @@ This Python script addresses issues with importing Blackboard course export pack
 - `-p` or `--pretty`: Makes XML output more readable by formatting it with proper indentation and spacing.
 
 #### Adds placeholders for LTI content to ensure it is included during the Canvas import process.
-- `-l` or `--lti`: Re-labels LTI content in the export package with placeholders so that the items are included during the Canvas import process. Without this option, LTI content is omitted entirely during import.
-  - The placeholders allow the LTI content to be visually represented after migration, helping you identify where the links were originally placed.
+- `-l` or `--lti`: Re-labels LTI content in the export package with placeholders so that the items are included during 
+the Canvas import process. Without this option, LTI content is omitted entirely during import.
+  - The placeholders allow the LTI content to be visually represented after migration, helping you identify where the 
+  links were originally placed.
   - **Note:** The migrated LTI links are not functional and will need to be deleted and recreated manually in Canvas.
 
 

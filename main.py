@@ -72,10 +72,16 @@ def main(pretty=False, lti_placeholder=False):
             # Retrieve and fix assignments in the manifest
             assignments = ims.get_assignment_resources()
             ims.fix_assignments(assignments)
+
+            # Retrieve and fix discussions in the manifest
+            discussions = ims.get_discussion_resources()
+            ims.fix_discussions(discussions)
+
+            # Write all changes
             ims.write_imsmanifest()
 
-            if pretty:
-                make_pretty()
+        if pretty:
+            make_pretty()
 
         # Repack the archive and clear the temporary directory
         zip_archive(file)
