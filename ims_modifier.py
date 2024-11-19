@@ -160,7 +160,9 @@ class ImsManifest:
                 referred_to_forum_data = read_dat_file(referred_to_forum)
                 referred_to_forum_root = referred_to_forum_data.getroot()
                 referred_to_forum_text_data = referred_to_forum_root.xpath(".//MESSAGETEXT/TEXT")
-                forum_description = "".join([text.text for text in referred_to_forum_text_data])
+
+                forum_description = "".join(
+                    [text.text if text.text is not None else "" for text in referred_to_forum_text_data])
 
                 # Get forum content
                 referrer_content_data = read_dat_file(referrer_content)
