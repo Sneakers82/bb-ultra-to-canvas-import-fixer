@@ -161,6 +161,7 @@ class ImsManifest:
                 referred_to_forum_root = referred_to_forum_data.getroot()
                 referred_to_forum_text_data = referred_to_forum_root.xpath(".//MESSAGETEXT/TEXT")
 
+                # Check if None Type
                 forum_description = "".join(
                     [text.text if text.text is not None else "" for text in referred_to_forum_text_data])
 
