@@ -1,18 +1,58 @@
 import os
+import zipfile
 from lxml import etree
-from config_loader import TEMP_DIR, IMSMANIFEST
-from dat_file import read_dat_file, save_dat_file, delete_dat_file
+from config_loader import INPUT_DIR, OUTPUT_DIR, IMSMANIFEST
 
 
 class ImsManifest:
     """Class to manage and modify the imsmanifest.xml file in a Blackboard course export."""
 
-    def __init__(self):
+    def __init__(self, archive_file):
         """Initialize the ImsManifest by loading and parsing the imsmanifest.xml file."""
-        self.file_path = os.path.join(TEMP_DIR, IMSMANIFEST)
-        self.manifest = etree.parse(self.file_path)
-        self.manifest_root = self.manifest.getroot()
+        self.archive_file = archive_file
+        self.working_archive = f"{INPUT_DIR}/{archive_file}"
+        self.manifest_root = self.extract_file(IMSMANIFEST)
         self.ns_map = {'bb': 'http://www.blackboard.com/content-packaging/'}
+        self.files_to_modify = {}
+
+    def extract_file(self, file_to_extract):
+
+        # Open file we want to inspect
+        with zipfile.ZipFile(self.working_archive, 'a') as archive:
+            xml_bytes = archive.read(file_to_extract)
+            root = etree.fromstring(xml_bytes)
+
+            return root
+
+    def store_changes(self, file_to_write, data):
+        self.files_to_modify[file_to_write] = data
+
+    def write_changes(self, pretty_print=False):
+
+        temp_archive = f"{OUTPUT_DIR}/{self.archive_file}.tmp"  # Temporary archive for rebuilding
+        with zipfile.ZipFile(self.working_archive, 'r') as archive:
+            with zipfile.ZipFile(temp_archive, 'w', compression=zipfile.ZIP_DEFLATED) as temp_archive:
+                for item in archive.infolist():
+                    if item.filename in self.files_to_modify:
+
+                        # Write the modified file
+                        data = self.files_to_modify[item.filename]
+                        temp_archive.writestr(
+                            item.filename,
+                            etree.tostring(
+                                data,
+                                pretty_print=pretty_print,
+                                encoding='UTF-8'))
+                    else:
+                        # Stream unchanged files directly
+                        with archive.open(item.filename) as source_file:
+                            temp_archive.writestr(item, source_file.read())
+
+        # Rename tmp Archive once done
+        os.rename(f"{OUTPUT_DIR}/{self.archive_file}.tmp", f"{OUTPUT_DIR}/PATCHED_{self.archive_file}")
+
+        # Clear the modification dictionary after applying changes
+        self.files_to_modify.clear()
 
     def self_test(self):
         """Check if the manifest root element is present.
@@ -28,7 +68,7 @@ class ImsManifest:
                 Returns:
                     bool: True if the course type is Ultra, otherwise False.
                 """
-        return bool(self.manifest_root.xpath(".//item/title[text()='ROOT']", namespaces=self.ns_map))
+        return bool(self.manifest_root.xpath(".//item/title[text()='ROOT']"))
 
     def get_assignment_resources(self):
         """Retrieve assignment resource files listed in the manifest.
@@ -78,8 +118,8 @@ class ImsManifest:
                     dat_files (list): List of data file paths to modify for LTI placeholders.
                 """
         for file in dat_files:
-            dat_file_data = read_dat_file(file)
-            dat_file_root = dat_file_data.getroot()
+
+            dat_file_root = self.extract_file(file)
 
             title = dat_file_root.xpath(".//TITLE")[0]
             content_handler = dat_file_root.xpath("//CONTENTHANDLER")[0]
@@ -89,7 +129,7 @@ class ImsManifest:
                 current_title = title.values()[0]
                 placeholder = "[LTI Content: Replace] "
                 title.set("value", placeholder + current_title)
-                save_dat_file(file, dat_file_data)
+                self.store_changes(file, dat_file_root)
 
     def fix_assignments(self, dat_files):
         """Convert Blackboard assignments to Canvas-compatible format in data files.
@@ -98,25 +138,22 @@ class ImsManifest:
                    dat_files (list): List of data file paths to process for assignment conversion.
                """
         for file in dat_files:
-            dat_file_data = read_dat_file(file)
-            dat_file_root = dat_file_data.getroot()
+
+            dat_file_root = self.extract_file(file)
 
             referrer = dat_file_root.xpath(".//REFERRER/@id")[0] + ".dat"
             referred_to = dat_file_root.xpath(".//REFERREDTO/@id")[0] + ".dat"
 
-            referrer_file_data = read_dat_file(referrer)
-            referrer_file_root = referrer_file_data.getroot()
+            referrer_file_root = self.extract_file(referrer)
             referrer_content_handler = referrer_file_root.xpath("//CONTENTHANDLER")[0]
 
             # Update Content handler for Assignment
             referrer_content_handler.set("value", "resource/x-bb-assignment")
 
-            referred_to_file_data = read_dat_file(referred_to)
-            referred_to_file_root = referred_to_file_data.getroot()
+            referred_to_file_root = self.extract_file(referred_to)
             asmtid = referred_to_file_root.xpath("//ASMTID/@value")[0] + ".dat"
 
-            asmtid_file_data = read_dat_file(asmtid)
-            asmtid_file_root = asmtid_file_data.getroot()
+            asmtid_file_root = self.extract_file(asmtid)
             asmtid_formatted_text = asmtid_file_root.xpath("//mat_formattedtext")
 
             referrer_body_text = referrer_file_root.xpath("//BODY/TEXT")[0]
@@ -130,10 +167,12 @@ class ImsManifest:
                 else:
                     pass
 
-            save_dat_file(referrer, referrer_file_data)
+            self.store_changes(referrer, referrer_file_root)
 
             files_to_delete = [file, referred_to, asmtid]
-            delete_dat_file(files_to_delete)
+            for file_to_delete in files_to_delete:
+                self.store_changes(file_to_delete, etree.Element("deleted"))
+
             self.remove_resource(files_to_delete)
 
     def fix_discussions(self, dat_files):
@@ -143,8 +182,8 @@ class ImsManifest:
                    dat_files (list): List of data file paths to process for discussion conversion.
                """
         for file in dat_files:
-            dat_file_data = read_dat_file(file)
-            dat_file_root = dat_file_data.getroot()
+
+            dat_file_root = self.extract_file(file)
 
             referrer = dat_file_root.find("REFERRER")
             referredto = dat_file_root.find("REFERREDTO")
@@ -157,8 +196,7 @@ class ImsManifest:
                 referred_to_forum = dat_file_root.xpath(".//REFERREDTO/@id")[0] + ".dat"
 
                 # Get forum description
-                referred_to_forum_data = read_dat_file(referred_to_forum)
-                referred_to_forum_root = referred_to_forum_data.getroot()
+                referred_to_forum_root = self.extract_file(referred_to_forum)
                 referred_to_forum_text_data = referred_to_forum_root.xpath(".//MESSAGETEXT/TEXT")
 
                 # Check if None Type
@@ -166,8 +204,7 @@ class ImsManifest:
                     [text.text if text.text is not None else "" for text in referred_to_forum_text_data])
 
                 # Get forum content
-                referrer_content_data = read_dat_file(referrer_content)
-                referrer_content_root = referrer_content_data.getroot()
+                referrer_content_root = self.extract_file(referrer_content)
                 referrer_content_body_text = referrer_content_root.xpath("//BODY/TEXT")[0]
 
                 # Fix forum description
@@ -175,19 +212,18 @@ class ImsManifest:
                     referrer_content_body_text.text = ""
                 referrer_content_body_text.text += forum_description
 
-                save_dat_file(referrer_content, referrer_content_data)
+                self.store_changes(referrer_content, referrer_content_root)
 
             elif referrer_type == "CONTENT" and referredto_type == "CONTENT":
                 referrer = dat_file_root.xpath(".//REFERRER/@id")[0] + ".dat"
 
-                referrer_file_data = read_dat_file(referrer)
-                referrer_file_root = referrer_file_data.getroot()
+                referrer_file_root = self.extract_file(referrer)
                 referrer_content_handler = referrer_file_root.xpath("//CONTENTHANDLER")[0]
 
                 # Update Content handler of Forum
                 referrer_content_handler.set("value", "resource/x-bb-forumlink")
 
-                save_dat_file(referrer, referrer_file_data)
+                self.store_changes(referrer, referrer_file_root)
 
             else:
                 pass
@@ -200,6 +236,8 @@ class ImsManifest:
                 parent = item.getparent()
                 parent.remove(item)
 
+        self.store_changes(IMSMANIFEST, self.manifest_root)
+
     def remove_resource(self, resources):
         """Remove specified resources from the manifest.
 
@@ -211,8 +249,4 @@ class ImsManifest:
             item_to_remote_parent = item_to_remove[0].getparent()
             item_to_remote_parent.remove(item_to_remove[0])
 
-    def write_imsmanifest(self):
-        """Write changes to the imsmanifest.xml file."""
-
-        with open(self.file_path, "wb") as file:
-            self.manifest.write(file, encoding='UTF-8', xml_declaration=True)
+        self.store_changes(IMSMANIFEST, self.manifest_root)
