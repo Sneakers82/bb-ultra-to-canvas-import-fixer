@@ -76,8 +76,7 @@ class ImsManifest:
                 Returns:
                     list: A list of paths to assignment data files within the manifest.
                 """
-        assignments = self.manifest_root.xpath(f".//resource[starts-with(@bb:title, 'New Assignment') "
-                                               f"and @type='resource/x-bb-link']", namespaces=self.ns_map)
+        assignments = self.manifest_root.xpath(f".//resource[@type='resource/x-bb-link']", namespaces=self.ns_map)
 
         dat_files = [assignment.get('{http://www.blackboard.com/content-packaging/}file') for assignment in assignments
                      if assignment.get('{http://www.blackboard.com/content-packaging/}file')]
@@ -147,33 +146,38 @@ class ImsManifest:
             referrer_file_root = self.extract_file(referrer)
             referrer_content_handler = referrer_file_root.xpath("//CONTENTHANDLER")[0]
 
-            # Update Content handler for Assignment
-            referrer_content_handler.set("value", "resource/x-bb-assignment")
-
             referred_to_file_root = self.extract_file(referred_to)
             asmtid = referred_to_file_root.xpath("//ASMTID/@value")[0] + ".dat"
 
             asmtid_file_root = self.extract_file(asmtid)
-            asmtid_formatted_text = asmtid_file_root.xpath("//mat_formattedtext")
+            asmtid_assignment = asmtid_file_root.xpath(".//assessmentmetadata/bbmd_assessment_subtype")
 
-            referrer_body_text = referrer_file_root.xpath("//BODY/TEXT")[0]
+            # Check Bb Ultra asmtid file to see if it is an Assignment
+            if asmtid_assignment and asmtid_assignment[0].text == "Assignment":
+                # Convert Ultra Assignment to Learn Original so Canvas can import it properly
 
-            if referrer_body_text.text is None:
-                referrer_body_text.text = ""
+                asmtid_formatted_text = asmtid_file_root.xpath("//mat_formattedtext")
 
-            for assignment_text in asmtid_formatted_text:
-                if assignment_text.text is not None:
-                    referrer_body_text.text += assignment_text.text
-                else:
-                    pass
+                # Update Content handler for Assignment
+                referrer_content_handler.set("value", "resource/x-bb-assignment")
+                referrer_body_text = referrer_file_root.xpath("//BODY/TEXT")[0]
 
-            self.store_changes(referrer, referrer_file_root)
+                if referrer_body_text.text is None:
+                    referrer_body_text.text = ""
 
-            files_to_delete = [file, referred_to, asmtid]
-            for file_to_delete in files_to_delete:
-                self.store_changes(file_to_delete, etree.Element("deleted"))
+                for assignment_text in asmtid_formatted_text:
+                    if assignment_text.text is not None:
+                        referrer_body_text.text += assignment_text.text
+                    else:
+                        pass
 
-            self.remove_resource(files_to_delete)
+                self.store_changes(referrer, referrer_file_root)
+
+                files_to_delete = [file, referred_to, asmtid]
+                for file_to_delete in files_to_delete:
+                    self.store_changes(file_to_delete, etree.Element("deleted"))
+
+                self.remove_resource(files_to_delete)
 
     def fix_discussions(self, dat_files):
         """Convert Blackboard Discussions to Canvas-compatible format in data files.
