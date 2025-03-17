@@ -97,13 +97,26 @@ class ImsManifest:
 
         return dat_files
 
+    def get_gradebook_resource(self):
+        """Retrieve gradebook resource files listed in the manifest.
+
+                Returns:
+                    list: A list of paths to assignment data files within the manifest.
+                """
+        gradebook = self.manifest_root.xpath(f".//resource[@type='course/x-bb-gradebook']", namespaces=self.ns_map)
+
+        dat_files = [gradebook.get('{http://www.blackboard.com/content-packaging/}file') for gradebook in gradebook
+                     if gradebook.get('{http://www.blackboard.com/content-packaging/}file')]
+
+        return dat_files
+
     def get_documents(self):
         """Retrieve document resource files listed in the manifest.
 
         Returns:
             list: A list of paths to document data files within the manifest.
         """
-        documents = self.manifest_root.xpath(f".//resource[@type='resource/x-bb-document']", namespaces=self.ns_map)
+        documents = self.manifest_root.xpath(f".//resource[@type='course/x-bb-gradebook']", namespaces=self.ns_map)
 
         dat_files = [document.get('{http://www.blackboard.com/content-packaging/}file') for document in documents
                      if document.get('{http://www.blackboard.com/content-packaging/}file')]
@@ -130,33 +143,78 @@ class ImsManifest:
                 title.set("value", placeholder + current_title)
                 self.store_changes(file, dat_file_root)
 
+    def get_ultra_assignments(self, resource_files):
+        ultra_assignments = []
+        fallback_assignments = []
+
+        for file in resource_files:
+            dat_file_root = self.extract_file(file)
+
+            referrer = dat_file_root.find("REFERRER")
+            referredto = dat_file_root.find("REFERREDTO")
+
+            referrer_type = referrer.get("type")
+            referredto_type = referredto.get("type")
+
+            if referrer_type == "CONTENT" and referredto_type == "COURSE_ASSESSMENT":
+
+                referrer = dat_file_root.xpath(".//REFERRER/@id")[0] + ".dat"
+                referred_to = dat_file_root.xpath(".//REFERREDTO/@id")[0] + ".dat"
+
+                referred_to_file_root = self.extract_file(referred_to)
+                asmtid = referred_to_file_root.xpath("//ASMTID/@value")[0] + ".dat"
+
+                asmtid_file_root = self.extract_file(asmtid)
+                asmtid_ultra_assignment = asmtid_file_root.xpath(".//assessmentmetadata/bbmd_assessment_subtype[text("
+                                                                 ")='Assignment']")
+                if asmtid_ultra_assignment:
+                    assignment = (file, referrer, referred_to, asmtid)
+                    ultra_assignments.append(assignment)
+                else:
+                    assignment = (file, referrer, referred_to, asmtid)
+                    fallback_assignments.append(assignment)
+
+        return ultra_assignments if ultra_assignments else fallback_assignments
+
     def fix_assignments(self, dat_files):
         """Convert Blackboard assignments to Canvas-compatible format in data files.
 
                Args:
                    dat_files (list): List of data file paths to process for assignment conversion.
                """
-        for file in dat_files:
+        ultra_assignment_files = self.get_ultra_assignments(dat_files)
 
-            dat_file_root = self.extract_file(file)
+        for file in ultra_assignment_files:
 
-            referrer = dat_file_root.xpath(".//REFERRER/@id")[0] + ".dat"
-            referred_to = dat_file_root.xpath(".//REFERREDTO/@id")[0] + ".dat"
+            resource = file[0]
+            referrer = file[1]
+            referred_to = file[2]
+            asmtid = file[3]
 
             referrer_file_root = self.extract_file(referrer)
             referrer_content_handler = referrer_file_root.xpath("//CONTENTHANDLER")[0]
 
-            referred_to_file_root = self.extract_file(referred_to)
-            asmtid = referred_to_file_root.xpath("//ASMTID/@value")[0] + ".dat"
-
             asmtid_file_root = self.extract_file(asmtid)
-            asmtid_assignment = asmtid_file_root.xpath(".//assessmentmetadata/bbmd_assessment_subtype")
+            asmtid_ultra_assignment = asmtid_file_root.xpath(".//assessmentmetadata/bbmd_assessment_subtype[text("
+                                                             ")='Assignment']")
+            asmtid_ultra_questions = asmtid_file_root.xpath(".//response_label")
+            asmtid_ultra_question_banks = asmtid_file_root.xpath(".//selection_metadata[@mdname='bbmd_questionid']")
+            asmtid_ultra_short_response = asmtid_file_root.xpath(".//bbmd_questiontype[text()='Short Response']")
+            asmtid_ultra_fill_in_the_blank = asmtid_file_root.xpath(".//bbmd_questiontype[contains(text(), 'Fill "
+                                                                    "in the Blank')]")
 
             # Check Bb Ultra asmtid file to see if it is an Assignment
-            if asmtid_assignment and asmtid_assignment[0].text == "Assignment":
-                # Convert Ultra Assignment to Learn Original so Canvas can import it properly
+            if (asmtid_ultra_assignment or
+                    # Check Bb Ultra asmtid file to see if it has questions
+                    (not (asmtid_ultra_questions or asmtid_ultra_question_banks or asmtid_ultra_short_response or
+                          asmtid_ultra_fill_in_the_blank))):
 
-                asmtid_formatted_text = asmtid_file_root.xpath("//mat_formattedtext")
+                # Convert Ultra Assignment to Learn Original so Canvas can import it properly
+                if asmtid_ultra_assignment and asmtid_ultra_assignment[0].text == "Assignment":
+                    asmtid_formatted_text = asmtid_file_root.xpath(".//mat_formattedtext")
+                else:
+                    asmtid_formatted_text = asmtid_file_root.xpath(".//flow/material/mat_extension"
+                                                                   "/mat_formattedtext")
 
                 # Update Content handler for Assignment
                 referrer_content_handler.set("value", "resource/x-bb-assignment")
@@ -173,7 +231,7 @@ class ImsManifest:
 
                 self.store_changes(referrer, referrer_file_root)
 
-                files_to_delete = [file, referred_to, asmtid]
+                files_to_delete = [resource, referred_to, asmtid]
                 for file_to_delete in files_to_delete:
                     self.store_changes(file_to_delete, etree.Element("deleted"))
 
