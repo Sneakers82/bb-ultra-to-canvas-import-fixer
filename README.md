@@ -8,6 +8,7 @@ modifying the export package `(ExportFile_*.zip)`.
 mistakenly imported as quizzes.
 - Resolves formatting issues in Blackboard Discussion Board descriptions, ensuring accurate import into Canvas.
 - Preserves Discussion Boards' position within the main content of the course for proper placement and accessibility.
+- Removes unused Gradebook categories
 - Supports bulk processing of multiple archive files for efficiency.
 - Provides an option to add placeholders for omitted LTI content, ensuring visual representation.
 - Includes an option to prettify XML for easier manual inspection and debugging.

@@ -300,6 +300,16 @@ class ImsManifest:
 
         self.store_changes(IMSMANIFEST, self.manifest_root)
 
+    def fix_gradebook(self):
+        gradebook = self.get_gradebook_resource()
+        gradebook_data = self.extract_file(gradebook[0])
+        gradebook_empty_categories = gradebook_data.xpath(
+            "//CATEGORY[not(@id = //OUTCOMEDEFINITION/CATEGORYID/@value)]")
+
+        for category in gradebook_empty_categories:
+            category.getparent().remove(category)
+            self.store_changes(gradebook[0], gradebook_data)
+
     def remove_resource(self, resources):
         """Remove specified resources from the manifest.
 

@@ -36,6 +36,9 @@ def main(pretty=False, lti_placeholder=False):
             discussions = ims.get_discussion_resources()
             ims.fix_discussions(discussions)
 
+            # Remove unused categories from the gradebook
+            ims.fix_gradebook()
+
             if lti_placeholder:
                 documents = ims.get_documents()
                 ims.add_lti_placeholder(documents)
