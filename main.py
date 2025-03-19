@@ -23,7 +23,11 @@ def main(pretty=False, lti_placeholder=False):
 
         # Unpack and inspect the archive
         # unzip_archive(file)
-        ims = ImsManifest(file)
+        try:
+            ims = ImsManifest(file)
+        except KeyError:
+            print(f"Failed to process {file}")
+            continue
 
         # Check if the archive contains Blackboard Ultra content
         if ims.is_ultra():
